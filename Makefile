@@ -37,12 +37,28 @@ MERGED_FILE = $(OUT_FILE)_$(SD_NAME)_$(SD_VERSION)
 
 # Toolchain commands
 # Should be added to your PATH
-CROSS_COMPILE ?= arm-none-eabi-
-CC      = $(CROSS_COMPILE)gcc
-AS      = $(CROSS_COMPILE)as
-OBJCOPY = $(CROSS_COMPILE)objcopy
-SIZE    = $(CROSS_COMPILE)size
-GDB     = $(CROSS_COMPILE)gdb
+
+PROGFILES = C:/Program Files (x86)
+GNU_INSTALL_ROOT = $(PROGFILES)/GNU Tools ARM Embedded/7-2018-q2-update/bin/
+GNU_PREFIX = arm-none-eabi
+
+# Toolchain commands
+CC      := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-gcc'
+AS      := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-as'
+AR      := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-ar' -r
+LD      := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-ld'
+NM      := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-nm'
+OBJDUMP := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-objdump'
+OBJCOPY := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-objcopy'
+SIZE    := '$(GNU_INSTALL_ROOT)$(GNU_PREFIX)-size'
+
+
+#CROSS_COMPILE ?= arm-none-eabi-
+#CC      = $(GNU_INSTALL_ROOT)$(CROSS_COMPILE)gcc
+#AS      = $(GNU_INSTALL_ROOT)$(CROSS_COMPILE)as
+#OBJCOPY = $(GNU_INSTALL_ROOT)$(CROSS_COMPILE)objcopy
+#SIZE    = $(GNU_INSTALL_ROOT)$(CROSS_COMPILE)size
+#GDB     = $(GNU_INSTALL_ROOT)$(CROSS_COMPILE)gdb
 
 NRFUTIL = adafruit-nrfutil
 NRFJPROG = nrfjprog
@@ -313,7 +329,11 @@ endif
 .PHONY: all clean flash dfu-flash sd gdbflash gdb
 
 # default target to build
-all: $(BUILD)/$(OUT_FILE).out $(BUILD)/$(OUT_FILE)-nosd.hex $(BUILD)/$(OUT_FILE)-nosd.uf2 $(BUILD)/$(MERGED_FILE).hex $(BUILD)/$(MERGED_FILE).zip
+#all: $(BUILD)/$(OUT_FILE).out $(BUILD)/$(OUT_FILE)-nosd.hex $(BUILD)/$(OUT_FILE)-nosd.uf2 $(BUILD)/$(MERGED_FILE).hex $(BUILD)/$(MERGED_FILE).zip
+
+all: $(BUILD)/$(OUT_FILE).out $(BUILD)/$(OUT_FILE)-nosd.hex $(BUILD)/$(MERGED_FILE).hex $(BUILD)/$(MERGED_FILE).zip
+
+
 
 #------------------- Compile rules -------------------
 
@@ -350,17 +370,17 @@ $(BUILD)/$(OUT_FILE).hex: $(BUILD)/$(OUT_FILE).out
 # Hex file with mbr (still no SD)
 $(BUILD)/$(OUT_FILE)-nosd.hex: $(BUILD)/$(OUT_FILE).hex
 	@echo Create $(notdir $@)
-	@python3 tools/hexmerge.py --overlap=replace -o $@ $< $(MBR_HEX)
+	@py tools/hexmerge.py --overlap=replace -o $@ $< $(MBR_HEX)
 
 # Bootolader only uf2
 $(BUILD)/$(OUT_FILE)-nosd.uf2: $(BUILD)/$(OUT_FILE)-nosd.hex
 	@echo Create $(notdir $@)
-	@python3 lib/uf2/utils/uf2conv.py -f 0xd663823c -c -o $@ $^
+	@py lib/uf2/utils/uf2conv.py -f 0xd663823c -c -o $@ $^
 
 # merge bootloader and sd hex together
 $(BUILD)/$(MERGED_FILE).hex: $(BUILD)/$(OUT_FILE).hex
 	@echo Create $(notdir $@)
-	@python3 tools/hexmerge.py -o $@ $< $(SD_HEX)
+	@py tools/hexmerge.py -o $@ $< $(SD_HEX)
 
 # Create pkg zip file for bootloader+SD combo to use with DFU CDC
 $(BUILD)/$(MERGED_FILE).zip: $(BUILD)/$(OUT_FILE).hex

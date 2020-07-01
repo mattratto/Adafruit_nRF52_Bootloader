@@ -171,8 +171,12 @@ int main(void)
   bool serial_only_dfu = (NRF_POWER->GPREGRET == DFU_MAGIC_SERIAL_ONLY_RESET);
 
   // start either serial, uf2 or ble
-  bool dfu_start = _ota_dfu || serial_only_dfu || (NRF_POWER->GPREGRET == DFU_MAGIC_UF2_RESET) ||
-                    (((*dbl_reset_mem) == DFU_DBL_RESET_MAGIC) && (NRF_POWER->RESETREAS & POWER_RESETREAS_RESETPIN_Msk));
+  //bool dfu_start = _ota_dfu || serial_only_dfu || (NRF_POWER->GPREGRET == DFU_MAGIC_UF2_RESET) ||
+  //                  (((*dbl_reset_mem) == DFU_DBL_RESET_MAGIC) && (NRF_POWER->RESETREAS & POWER_RESETREAS_RESETPIN_Msk));
+
+// start either serial, uf2 or ble
+  bool dfu_start = _ota_dfu || serial_only_dfu;
+
 
   // Clear GPREGRET if it is our values
   if (dfu_start) NRF_POWER->GPREGRET = 0;
@@ -202,64 +206,31 @@ int main(void)
   dfu_start  = dfu_start || button_pressed(BUTTON_DFU);
 
   // DFU + FRESET are pressed --> OTA
-  _ota_dfu = _ota_dfu  || ( button_pressed(BUTTON_DFU) && button_pressed(BUTTON_FRESET) ) ;
+  //_ota_dfu = _ota_dfu  || ( button_pressed(BUTTON_DFU) && button_pressed(BUTTON_FRESET) ) ;
+
+  // DFU + FRESET are pressed --> OTA
+  _ota_dfu = _ota_dfu  || ( button_pressed(BUTTON_DFU)); 
 
   bool const valid_app = bootloader_app_is_valid();
-  bool const just_start_app = valid_app && !dfu_start && (*dbl_reset_mem) == DFU_DBL_RESET_APP;
+ 
+ if (!valid_app) _ota_dfu = true; 
 
-  if (!just_start_app && APP_ASKS_FOR_SINGLE_TAP_RESET())
-    dfu_start = 1;
-
-  // App mode: register 1st reset and DFU startup (nrf52832)
-  if ( ! (just_start_app || dfu_start || !valid_app) )
+ if ( _ota_dfu) 
   {
-    // Register our first reset for double reset detection
-    (*dbl_reset_mem) = DFU_DBL_RESET_MAGIC;
-
-#ifdef NRF52832_XXAA
-    /* Even DFU is not active, we still force an 1000 ms dfu serial mode when startup
-     * to support auto programming from Arduino IDE
-     *
-     * Note: Supposedly during this time if RST is press, it will count as double reset.
-     * However Double Reset WONT work with nrf52832 since its SRAM got cleared anyway.
-     */
-    bootloader_dfu_start(false, DFU_SERIAL_STARTUP_INTERVAL);
-#else
-    // if RST is pressed during this delay --> if will enter dfu
-    NRFX_DELAY_MS(DFU_DBL_RESET_DELAY);
-#endif
-  }
-
-  if (APP_ASKS_FOR_SINGLE_TAP_RESET())
-    (*dbl_reset_mem) = DFU_DBL_RESET_APP;
-  else
-    (*dbl_reset_mem) = 0;
-
-  if ( dfu_start || !valid_app )
-  {
-    if ( _ota_dfu )
-    {
       led_state(STATE_BLE_DISCONNECTED);
       softdev_init(!sd_inited);
       sd_inited = true;
+      APP_ERROR_CHECK( bootloader_dfu_start(_ota_dfu, 0) );
+      sd_softdevice_disable();
     }
-    else
+ 
+  if (serial_only_dfu)
     {
       led_state(STATE_USB_UNMOUNTED);
       usb_init(serial_only_dfu);
-    }
-
-    // Initiate an update of the firmware.
-    APP_ERROR_CHECK( bootloader_dfu_start(_ota_dfu, 0) );
-
-    if ( _ota_dfu )
-    {
-      sd_softdevice_disable();
-    }else
-    {
+      APP_ERROR_CHECK( bootloader_dfu_start(_ota_dfu, 0) );
       usb_teardown();
     }
-  }
 
   // Reset Board
   board_teardown();
